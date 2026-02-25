@@ -55,7 +55,5 @@ Four
 You can either install using go:
 
 ```
-go install -v github.com/tomnomnom/anew@latest
+go install -v github.com/cuhsat/anew@latest
 ```
-
-Or download a [binary release](https://github.com/tomnomnom/anew/releases) for your platform.
