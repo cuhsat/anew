@@ -2,12 +2,15 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"flag"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"strings"
 
+	"github.com/edsrzf/mmap-go"
 	"github.com/zeebo/xxh3"
 )
 
@@ -24,27 +27,36 @@ func main() {
 
 	fn := flag.Arg(0)
 
-	lines := make(map[uint64]bool)
+	lines := make(map[uint64]struct{})
 
 	var f io.WriteCloser
 
 	if fn != "" {
-		// read the hashed file into a map if it exists
-		r, err := os.Open(fn)
+		// read the hashed file into a map
+		f, err := os.Open(fn)
 
-		if err == nil {
-			sc := bufio.NewScanner(r)
-
-			for sc.Scan() {
-				line := sc.Text()
-				if trim {
-					line = strings.TrimSpace(line)
-				}
-				lines[xxh3.HashString(line)] = true
-			}
-
-			_ = r.Close()
+		if err != nil {
+			log.Fatalln(err)
 		}
+
+		m, err := mmap.Map(f, mmap.RDONLY, 0)
+
+		if err != nil {
+			log.Fatalln(err)
+		}
+
+		sc := bufio.NewScanner(bytes.NewReader(m))
+
+		for sc.Scan() {
+			line := sc.Text()
+			if trim {
+				line = strings.TrimSpace(line)
+			}
+			lines[xxh3.HashString(line)] = struct{}{}
+		}
+
+		_ = m.Unmap()
+		_ = f.Close()
 
 		if !dryRun {
 			// re-open the file for appending new stuff
@@ -71,12 +83,12 @@ func main() {
 			line = strings.TrimSpace(line)
 		}
 
-		if lines[xxh3.HashString(line)] {
+		if _, ok := lines[xxh3.HashString(line)]; ok {
 			continue
 		}
 
 		// add the line to the map so we don't get any duplicates from stdin
-		lines[xxh3.HashString(line)] = true
+		lines[xxh3.HashString(line)] = struct{}{}
 
 		if !quietMode {
 			fmt.Println(line)
